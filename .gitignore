@@ -1,0 +1,30 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+.venv/
+venv/
+
+# Downloaded dependencies and benchmark data should be recreated locally.
+Datamind-main/
+data/
+
+# Experiment outputs and model artifacts.
+results/
+experiments/results/
+checkpoints/
+experiments/checkpoints/
+*.zip
+vllm.log
+
+# LaTeX build products.
+report/*.aux
+report/*.bbl
+report/*.blg
+report/*.fdb_latexmk
+report/*.fls
+report/*.log
+report/*.out
+report/*.pdf
+report/*.synctex.gz

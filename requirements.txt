@@ -1,0 +1,16 @@
+openai
+pandas
+numpy
+scipy
+scikit-learn
+statsmodels
+tabulate
+tqdm
+pyyaml
+colorama
+matplotlib
+seaborn
+networkx
+openpyxl
+pingouin
+transformers

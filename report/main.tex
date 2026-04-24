@@ -1,0 +1,257 @@
+\documentclass[11pt]{article}
+\usepackage[hyperref]{acl}
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{url}
+\usepackage{xcolor}
+
+\title{Survey: A Resource-Aware Reproduction of DataMind for Data Analysis Agents}
+
+\author{
+  Nurdaulet Berkutov \quad Razim Mammadli \\
+  \texttt{razimmammadli@gmail.com}
+}
+
+\newcommand{\todoresult}{\textcolor{red}{TODO}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Large language models can write code and answer questions, but data analysis requires a harder combination of skills: reading tables, choosing a statistical plan, executing code, interpreting intermediate outputs, and stopping with a justified answer.
+This report surveys and partially reproduces the DataMind study of open-source LLMs for data analysis.
+In response to project feedback, we narrow the reproduction to three executable experiments that fit on one Colab Pro A100: a table-metadata ablation, a code-error analysis, and a turn-budget study.
+This smaller scope avoids multi-GPU fine-tuning while still testing the paper's main claim that strategic planning, not only coding ability, is a central bottleneck for open-source data-analysis agents.
+\end{abstract}
+
+\section{Introduction}
+
+Data analysis is not a single-step question-answering task.
+A useful analyst must identify the relevant data file, inspect columns, decide which computation or statistical test is appropriate, write code, read the output, and revise the plan when the output is surprising.
+Recent LLM agents make this process more automatic by combining natural language reasoning with code execution.
+However, open-source models still lag behind proprietary models on data-analysis benchmarks.
+
+The DataMind paper by \citet{zhu2025openlLMs} studies this gap directly.
+Instead of treating data analysis as one broad ability, the paper separates it into three capabilities: data comprehension, code generation, and strategic planning.
+Its main message is that many failures are not simple syntax mistakes.
+The harder problem is often deciding what analysis should be done in the first place.
+
+Our original proposal tried to reproduce too much of the paper, including many tables and fine-tuning experiments.
+That would be risky for a course project because it depends on large GPU allocations and many repeated model runs.
+This revised report keeps the project executable.
+We focus on three experiments that can be run with Qwen2.5-7B-Instruct on one Colab Pro A100.
+
+The contributions of this survey are:
+\begin{itemize}
+    \item We summarize the DataMind diagnosis of data-analysis agents in a compact, experiment-focused way.
+    \item We provide standalone scripts and a Colab notebook for three reproducible experiments.
+    \item We make the resource budget explicit: one A100 for inference, no LoRA training, and no full paper-scale reproduction.
+\end{itemize}
+
+\section{Experimental Setup}
+
+\subsection{Base Framework}
+
+All experiments use a ReAct-style loop \citep{yao2023react}.
+The model first writes a short reasoning step, then writes Python code when needed, then observes the execution output.
+The Python runner keeps state across turns, which is important because real data analysis often builds on previous variables, tables, and intermediate results.
+
+The experiments use the public DataMind codebase as a local dependency for prompt compatibility, but the scripts in our repository are standalone wrappers.
+This matters for the assignment requirement: the submitted repository is not just the original authors' code.
+
+\subsection{Model}
+
+The main model is \textbf{Qwen2.5-7B-Instruct}.
+It is served with vLLM using an OpenAI-compatible local server.
+We choose the 7B model because it fits comfortably on one Colab Pro A100 and can run all three experiments without multi-GPU training.
+The default decoding temperature is 0 to reduce run-to-run variation.
+
+\subsection{Dataset}
+
+The primary benchmark is QRData \citep{liu2024qrdata}, a collection of statistical and causal reasoning questions paired with real CSV files.
+QRData is a good fit for this project because it is smaller and more controlled than broad data-science competition benchmarks, but still requires actual computation over tables.
+
+The scripts also support DiscoveryBench \citep{majumder2024discoverybench}.
+For the final course run, we use QRData first because it is the safer resource choice.
+If time remains, the same scripts can be repeated on DiscoveryBench as an appendix experiment.
+
+\subsection{Evaluation}
+
+Each run saves JSON result files and a small summary file.
+Accuracy is computed by comparing the model's final answer with the benchmark answer.
+For the Colab run, we use a deterministic local judge to avoid API cost.
+For the final polished report, an OpenAI judge can be used if more precise agreement scoring is needed.
+
+The planned final setting is:
+\begin{itemize}
+    \item Model: Qwen2.5-7B-Instruct.
+    \item GPU: one Colab Pro A100.
+    \item Dataset: QRData.
+    \item Sample size: 50 examples for the main run, with a 5-example smoke test first.
+    \item Maximum turns: 6 unless the experiment changes this value.
+\end{itemize}
+
+\section{Experiments}
+
+\subsection{Experiment 1: Table Metadata Ablation}
+
+This experiment tests whether the model mainly fails because it cannot understand the table structure.
+We compare two prompt conditions on the same QRData examples:
+\begin{itemize}
+    \item \textbf{Without metadata:} the prompt gives only the question and available file names.
+    \item \textbf{With metadata:} the prompt also gives column names, data types, and three sample rows.
+\end{itemize}
+
+If table comprehension is the main bottleneck, metadata should produce a large accuracy gain.
+If the gain is small, then the model may already understand basic table structure, and failures may come more from planning or statistical choices.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+Condition & Accuracy & Code Error Rate & $N$ \\
+\midrule
+Without metadata & \todoresult & \todoresult & \todoresult \\
+With metadata    & \todoresult & \todoresult & \todoresult \\
+\bottomrule
+\end{tabular}
+\caption{Experiment 1 result template. Replace TODO values using \texttt{experiments/results/exp1\_colab/summary.json}.}
+\label{tab:exp1}
+\end{table}
+
+\subsection{Experiment 2: Code Behavior and Error Categories}
+
+This experiment asks whether wrong answers mostly come from code execution failures or from higher-level reasoning failures.
+The model runs in the normal no-metadata setting.
+We record two values: answer accuracy and code error rate.
+Then we categorize incorrect cases into three types:
+\begin{itemize}
+    \item \textbf{Planning error:} wrong analysis strategy, wrong sequence of steps, or premature final answer.
+    \item \textbf{Data-understanding error:} wrong column, wrong file, or wrong interpretation of table contents.
+    \item \textbf{Code error:} syntax error, runtime error, or incorrect library usage.
+\end{itemize}
+
+This directly addresses the DataMind paper's main claim.
+If most failures are planning errors, then improving code syntax alone is not enough.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+Model & Accuracy & Code Error Rate & $N$ \\
+\midrule
+Qwen2.5-7B-Instruct & \todoresult & \todoresult & \todoresult \\
+\bottomrule
+\end{tabular}
+\caption{Experiment 2 accuracy and code-error template. Replace TODO values using \texttt{experiments/results/exp2\_colab/summary.json}.}
+\label{tab:exp2main}
+\end{table}
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+Error Category & Count & Percent \\
+\midrule
+Planning / reasoning & \todoresult & \todoresult \\
+Data understanding   & \todoresult & \todoresult \\
+Code error           & \todoresult & \todoresult \\
+\bottomrule
+\end{tabular}
+\caption{Experiment 2 error-category template. Replace TODO values using \texttt{experiments/results/exp2\_colab/error\_categories.json}.}
+\label{tab:exp2errors}
+\end{table}
+
+\subsection{Experiment 3: Turn-Budget Study}
+
+The DataMind paper argues that multi-turn strategy matters.
+Instead of training separate models for short, medium, and long trajectories, we run a cheaper inference-only version of the same idea.
+We keep the model and examples fixed, but change the maximum number of analysis turns:
+\begin{itemize}
+    \item 2 turns: short budget.
+    \item 4 turns: medium budget.
+    \item 6 turns: longer budget.
+\end{itemize}
+
+This experiment is useful because more turns are not automatically better.
+A short budget can force the model to answer too early, while a long budget can let the model drift, repeat itself, or introduce new mistakes.
+The best result may come from a middle value.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+Turn Budget & Accuracy & Code Error Rate & $N$ \\
+\midrule
+2 turns & \todoresult & \todoresult & \todoresult \\
+4 turns & \todoresult & \todoresult & \todoresult \\
+6 turns & \todoresult & \todoresult & \todoresult \\
+\bottomrule
+\end{tabular}
+\caption{Experiment 3 result template. Replace TODO values using \texttt{experiments/results/exp3\_colab/summary.json}.}
+\label{tab:exp3}
+\end{table}
+
+\section{Results}
+
+Tables~\ref{tab:exp1}, \ref{tab:exp2main}, \ref{tab:exp2errors}, and \ref{tab:exp3} should be filled after the Colab run.
+This draft intentionally leaves result cells as TODO so that the final submission reports only experiments that were actually executed.
+
+After filling the tables, the results section should answer three questions:
+\begin{enumerate}
+    \item Did table metadata produce a large or small improvement?
+    \item Were wrong answers mostly planning failures, data-understanding failures, or code failures?
+    \item Which turn budget gave the best accuracy?
+\end{enumerate}
+
+\section{Discussion}
+
+This scoped reproduction is designed to be smaller than the full DataMind paper but still scientifically useful.
+Experiment 1 isolates table context.
+Experiment 2 looks inside failures instead of only reporting accuracy.
+Experiment 3 tests whether the number of reasoning-and-code rounds changes performance.
+Together, these experiments test the paper's central diagnosis without requiring expensive fine-tuning.
+
+The most important interpretation will come from comparing Exp.~1 and Exp.~2.
+If metadata gives only a small gain while planning errors dominate, then our results support the DataMind claim that open-source data-analysis agents are limited more by strategy than by basic table reading.
+If metadata gives a large gain, then our smaller run would suggest that table comprehension still matters substantially for the chosen subset.
+
+The turn-budget result is also practically useful.
+If 4 or 6 turns outperform 2 turns, then the model benefits from extra opportunities to inspect data.
+If 6 turns is worse than 4 turns, then there is evidence that longer agent loops can add noise instead of helping.
+
+\paragraph{Limitations.}
+This is a partial reproduction, not a full rerun of every table in the original paper.
+We evaluate one open-source model first, use a limited QRData subset for resource reasons, and do not reproduce LoRA or RL training.
+The local judge is useful for low-cost pilots, but final claims should be checked carefully, especially for non-numeric answers.
+
+\section{Resources}
+
+The planned compute budget is one Colab Pro A100 GPU for vLLM inference.
+No fine-tuning GPU hours are claimed.
+No 4xA100 setup is required.
+The smoke test uses 5 QRData examples; the main run uses 50 examples.
+If API judging is used later, the expected cost is small because only final answers are judged.
+
+\section{Code}
+
+The project code is available at:
+
+\begin{center}
+\url{https://github.com/Razim021/datamind-survey}
+\end{center}
+
+The repository contains a README with step-by-step instructions, a Colab notebook for the three experiments, standalone scripts in \texttt{experiments/}, and this ACL-format report draft.
+Downloaded datasets, model checkpoints, and result files are not committed by default.
+
+\bibliography{references}
+\bibliographystyle{acl_natbib}
+
+\end{document}
