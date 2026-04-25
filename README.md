@@ -74,6 +74,10 @@ They are recreated when you run the setup.
 
 ## Easiest Way: Run on Colab Pro A100
 
+Before opening Colab, make sure this GitHub repo is **public**.
+If the repo is private, Colab may open the notebook in your browser but the
+runtime will fail when it tries to clone the repo.
+
 Open the notebook:
 
 [Open in Colab](https://colab.research.google.com/github/Razim021/datamind-survey/blob/main/notebooks/run_first3_colab.ipynb)
