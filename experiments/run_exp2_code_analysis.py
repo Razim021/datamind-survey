@@ -248,10 +248,12 @@ def main():
         # Collect all incorrect results from existing result files
         error_samples = []
         for fp in Path(args.results_dir).glob("*.json"):
-            if "summary" in fp.name:
+            if fp.name in {"summary.json", "error_categories.json"}:
                 continue
             with open(fp) as f:
                 data = json.load(f)
+            if not isinstance(data, list):
+                continue
             errors = [r for r in data if not r.get("correct", True)]
             error_samples.extend(errors)
 

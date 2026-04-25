@@ -250,7 +250,9 @@ experiments/results/exp2_colab/error_categories.json
 experiments/results/exp3_colab/summary.json
 ```
 
-Copy those numbers into `report/main.tex` where it says `TODO`.
+The current report draft already contains the 50-sample Colab results from the
+April 25 run. If you rerun with different numbers, replace the table values in
+`report/main.tex`.
 
 ## Make the Report PDF in Overleaf
 
@@ -275,7 +277,7 @@ Button-by-button:
 
 Before final submission:
 
-1. Replace every `TODO` result in `report/main.tex`.
+1. Check that the result tables in `report/main.tex` match your latest Colab run.
 2. Keep the GitHub link as <https://github.com/Razim021/datamind-survey>.
 3. Make sure the report says you used one Colab Pro A100.
 4. Submit the PDF on Canvas.

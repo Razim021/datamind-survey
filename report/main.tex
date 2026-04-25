@@ -6,7 +6,6 @@
 \usepackage{booktabs}
 \usepackage{amsmath}
 \usepackage{url}
-\usepackage{xcolor}
 
 \title{Survey: A Resource-Aware Reproduction of DataMind for Data Analysis Agents}
 
@@ -14,8 +13,6 @@
   Nurdaulet Berkutov \quad Razim Mammadli \\
   \texttt{razimmammadli@gmail.com}
 }
-
-\newcommand{\todoresult}{\textcolor{red}{TODO}}
 
 \begin{document}
 \maketitle
@@ -115,11 +112,11 @@ If the gain is small, then the model may already understand basic table structur
 \toprule
 Condition & Accuracy & Code Error Rate & $N$ \\
 \midrule
-Without metadata & \todoresult & \todoresult & \todoresult \\
-With metadata    & \todoresult & \todoresult & \todoresult \\
+Without metadata & 32.00\% & 6.00\% & 50 \\
+With metadata    & 40.00\% & 2.00\% & 50 \\
 \bottomrule
 \end{tabular}
-\caption{Experiment 1 result template. Replace TODO values using \texttt{experiments/results/exp1\_colab/summary.json}.}
+\caption{Experiment 1 results on a 50-example QRData subset. Adding metadata improves accuracy by 8.00 percentage points and lowers the code error rate by 4.00 points.}
 \label{tab:exp1}
 \end{table}
 
@@ -145,10 +142,10 @@ If most failures are planning errors, then improving code syntax alone is not en
 \toprule
 Model & Accuracy & Code Error Rate & $N$ \\
 \midrule
-Qwen2.5-7B-Instruct & \todoresult & \todoresult & \todoresult \\
+Qwen2.5-7B-Instruct & 36.00\% & 8.00\% & 50 \\
 \bottomrule
 \end{tabular}
-\caption{Experiment 2 accuracy and code-error template. Replace TODO values using \texttt{experiments/results/exp2\_colab/summary.json}.}
+\caption{Experiment 2 accuracy and code-error rate on the same 50-example QRData subset.}
 \label{tab:exp2main}
 \end{table}
 
@@ -159,12 +156,12 @@ Qwen2.5-7B-Instruct & \todoresult & \todoresult & \todoresult \\
 \toprule
 Error Category & Count & Percent \\
 \midrule
-Planning / reasoning & \todoresult & \todoresult \\
-Data understanding   & \todoresult & \todoresult \\
-Code error           & \todoresult & \todoresult \\
+Planning / reasoning & 0 & 0.00\% \\
+Data understanding   & 4 & 80.00\% \\
+Code error           & 1 & 20.00\% \\
 \bottomrule
 \end{tabular}
-\caption{Experiment 2 error-category template. Replace TODO values using \texttt{experiments/results/exp2\_colab/error\_categories.json}.}
+\caption{Heuristic categorization of 5 sampled incorrect outputs from Experiment 2. Because the sample is small, these counts are treated as qualitative evidence rather than a stable distribution.}
 \label{tab:exp2errors}
 \end{table}
 
@@ -190,26 +187,31 @@ The best result may come from a middle value.
 \toprule
 Turn Budget & Accuracy & Code Error Rate & $N$ \\
 \midrule
-2 turns & \todoresult & \todoresult & \todoresult \\
-4 turns & \todoresult & \todoresult & \todoresult \\
-6 turns & \todoresult & \todoresult & \todoresult \\
+2 turns & 36.00\% & 8.00\% & 50 \\
+4 turns & 36.00\% & 8.00\% & 50 \\
+6 turns & 36.00\% & 8.00\% & 50 \\
 \bottomrule
 \end{tabular}
-\caption{Experiment 3 result template. Replace TODO values using \texttt{experiments/results/exp3\_colab/summary.json}.}
+\caption{Experiment 3 turn-budget results on the same 50-example QRData subset. Accuracy is unchanged across the tested budgets.}
 \label{tab:exp3}
 \end{table}
 
 \section{Results}
 
-Tables~\ref{tab:exp1}, \ref{tab:exp2main}, \ref{tab:exp2errors}, and \ref{tab:exp3} should be filled after the Colab run.
-This draft intentionally leaves result cells as TODO so that the final submission reports only experiments that were actually executed.
+Tables~\ref{tab:exp1}, \ref{tab:exp2main}, \ref{tab:exp2errors}, and \ref{tab:exp3} report the Colab A100 run with 50 QRData examples.
+The clearest result is the metadata ablation.
+Adding column names, data types, and sample rows raises accuracy from 32.00\% to 40.00\%, an 8.00 percentage-point gain.
+It also lowers the code error rate from 6.00\% to 2.00\%.
+This suggests that, for this subset, explicit table context is not merely cosmetic; it gives the model useful grounding.
 
-After filling the tables, the results section should answer three questions:
-\begin{enumerate}
-    \item Did table metadata produce a large or small improvement?
-    \item Were wrong answers mostly planning failures, data-understanding failures, or code failures?
-    \item Which turn budget gave the best accuracy?
-\end{enumerate}
+The baseline no-metadata evaluation in Experiment 2 reaches 36.00\% accuracy with an 8.00\% code error rate.
+The sampled error categorization is small, but it is still informative: 4 of 5 sampled wrong outputs are labeled as data-understanding errors, and 1 of 5 as a code error.
+In this pilot, the dominant visible failure mode is therefore not pure Python syntax but confusion about the data or task setup.
+
+The turn-budget study gives a flat result.
+Allowing 2, 4, or 6 turns produces the same 36.00\% accuracy and 8.00\% code error rate.
+This indicates that simply allowing more turns is not enough to improve performance for this model and subset.
+The model needs better intermediate decisions, not just a longer loop.
 
 \section{Discussion}
 
@@ -219,13 +221,16 @@ Experiment 2 looks inside failures instead of only reporting accuracy.
 Experiment 3 tests whether the number of reasoning-and-code rounds changes performance.
 Together, these experiments test the paper's central diagnosis without requiring expensive fine-tuning.
 
-The most important interpretation will come from comparing Exp.~1 and Exp.~2.
-If metadata gives only a small gain while planning errors dominate, then our results support the DataMind claim that open-source data-analysis agents are limited more by strategy than by basic table reading.
-If metadata gives a large gain, then our smaller run would suggest that table comprehension still matters substantially for the chosen subset.
+The most important interpretation comes from comparing Exp.~1 and Exp.~2.
+Metadata gives a clear 8.00 point improvement, which means table grounding matters for our selected subset.
+This does not contradict DataMind's larger claim that planning is important; rather, it narrows our finding.
+In a small resource-aware reproduction, the model first benefits from being told what the table contains.
+After that, remaining failures still require better decisions about which analysis to run and how to interpret outputs.
 
 The turn-budget result is also practically useful.
-If 4 or 6 turns outperform 2 turns, then the model benefits from extra opportunities to inspect data.
-If 6 turns is worse than 4 turns, then there is evidence that longer agent loops can add noise instead of helping.
+Because 2, 4, and 6 turns tie, the result suggests that a longer fixed agent loop should not be assumed to help.
+For this model, the same examples are solved or missed regardless of the allowed budget.
+Future work should test adaptive stopping or better planning prompts instead of only increasing the number of turns.
 
 \paragraph{Limitations.}
 This is a partial reproduction, not a full rerun of every table in the original paper.
