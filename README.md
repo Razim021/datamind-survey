@@ -23,16 +23,20 @@ This version is intentionally smaller and safer:
 | Exp 1 | Zhu et al. Table 1, table-info ablation | QRData prompts with filenames only vs. filenames plus columns, dtypes, and 3 sample rows | about 50 min |
 | Exp 2 | Zhu et al. Table 4 and Figure 2, code/error analysis | Categorize wrong baseline Exp-1 trajectories without extra model runs | under 1 min |
 | Exp 3 | Lightweight inference analogue of Zhu et al. Section 4.3/Table 5 turn-length finding | Same model and samples, max ReAct turns in `{2, 4, 6}` | about 75 min |
+| Optional | Zhu et al. Table 1 model-scale comparison | Rerun Exp 1 only with Qwen2.5-14B-Instruct | about 30-60 min |
 
 Dropped from the final runnable scope:
 
 - No LoRA, SFT, RL, or DataMind-12K training.
 - No DiscoveryBench on the default Colab path.
-- No Qwen 14B or multi-model sweep.
+- No full multi-model sweep.
 - No paid API judge by default.
 
 The notebook is designed for one Colab Pro A100 and has hard wall-clock caps
 plus per-sample checkpointing, so partial results survive a disconnect.
+If time remains, the notebook includes an optional 14B Exp 1 rerun. This adds
+a focused 7B-vs-14B comparison without changing the resource story into a
+multi-model benchmark sweep.
 
 ## Repo Layout
 
@@ -71,12 +75,14 @@ Recreated locally and not committed:
 3. In Colab, choose `Runtime -> Change runtime type -> GPU -> A100`.
 4. Run once with `SMOKE_TEST = True`.
 5. If the smoke test works, set `SMOKE_TEST = False` and run all cells again.
-6. Download `/content/datamind_first3_results.zip` from the final cell.
+6. Optional stronger run: execute the `Optional Upgrade: 14B Exp 1 Only` cells.
+7. Download `/content/datamind_first3_results.zip` from the final cell.
 
 Expected output files:
 
 ```text
 experiments/results/exp1_colab/summary.json
+experiments/results/exp1_14b_colab/summary.json       # optional
 experiments/results/exp2_colab/error_categories.json
 experiments/results/exp3_colab/summary.json
 ```
@@ -119,6 +125,15 @@ Same model and QRData setting as the baseline. The only variable is maximum
 assistant turns: `2`, `4`, or `6`. This is not the full fine-tuned turn-length
 experiment from the paper; it is a lightweight test of whether extra inference
 turns alone help under the course-project budget.
+
+### Optional Upgrade: 14B Exp 1
+
+Script: `experiments/run_exp1_comprehension.py`
+
+The notebook can stop the 7B vLLM server, load `Qwen2.5-14B-Instruct`, and
+rerun only Exp 1 into `results/exp1_14b_colab`. This is the recommended
+upgrade if there is spare Colab time because it directly strengthens the
+table-information ablation with a model-scale comparison.
 
 ## Manual Commands
 
@@ -175,6 +190,18 @@ python run_exp3_turn_budget.py \
   --output_dir results/exp3_colab
 ```
 
+Optional 14B Exp 1 command after restarting vLLM with
+`Qwen/Qwen2.5-14B-Instruct` served as `Qwen2.5-14B-Instruct`:
+
+```bash
+python run_exp1_comprehension.py \
+  --model_name Qwen2.5-14B-Instruct \
+  --data_dir ../data --dataset qrdata --sub_experiment info \
+  --n_samples 40 --max_rounds 4 --api_port 8000 \
+  --time_budget_s 1800 --judge_backend local \
+  --output_dir results/exp1_14b_colab
+```
+
 Optional appendix data:
 
 ```bash
@@ -184,4 +211,5 @@ python download_data.py --dataset discoverybench
 ## Resources
 
 Default run: one Colab Pro A100, Qwen2.5-7B-Instruct served locally with vLLM,
-QRData only, and local deterministic judging. No paid API calls are required.
+QRData only, and local deterministic judging. Optional upgrade: rerun Exp 1
+only with Qwen2.5-14B-Instruct on the same A100. No paid API calls are required.
