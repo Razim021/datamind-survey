@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import io
 import os
+import signal
 import sys
 import traceback
 from pathlib import Path
@@ -106,13 +107,21 @@ def chat_with_model(
     return response.choices[0].message.content or ""
 
 
-if os.environ.get("USE_DATAMIND_CODERUNNER") == "1":
+if os.environ.get("USE_DATAMIND_CODERUNNER", "1") != "0":
     try:
         from python_executor import CodeRunner as _DataMindCodeRunner
     except Exception:
         _DataMindCodeRunner = None
 else:
     _DataMindCodeRunner = None
+
+
+class _ExecutionTimeout(Exception):
+    pass
+
+
+def _timeout_handler(signum, frame):
+    raise _ExecutionTimeout("Code execution timed out")
 
 
 class _FallbackCodeRunner:
@@ -147,15 +156,25 @@ class _FallbackCodeRunner:
         try:
             if base_path:
                 os.chdir(base_path)
+            old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+            signal.alarm(self.timeout)
             stdout = io.StringIO()
             stderr = io.StringIO()
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 exec(python_code, self.globals)
+            signal.alarm(0)
             err = stderr.getvalue().strip()
             return stdout.getvalue().strip(), err, bool(err)
+        except _ExecutionTimeout as exc:
+            return "", str(exc), True
         except Exception:
             return "", traceback.format_exc(limit=5).strip(), True
         finally:
+            try:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
+            except Exception:
+                pass
             os.chdir(cwd)
 
 

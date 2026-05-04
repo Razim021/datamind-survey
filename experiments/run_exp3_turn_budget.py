@@ -22,6 +22,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -36,6 +37,7 @@ from utils.evaluate import (
     check_answer_equiv,
     compute_accuracy,
     compute_code_error_rate,
+    extract_code_blocks,
     extract_final_answer,
     get_judge_client,
     print_summary,
@@ -44,8 +46,6 @@ from utils.evaluate import (
 
 
 def run_single(sample: dict, model_name: str, api_port: int, max_rounds: int) -> dict:
-    import re
-
     runner = CodeRunner()
     prompt = build_prompt_without_info(sample)
     messages = [
@@ -68,7 +68,7 @@ def run_single(sample: dict, model_name: str, api_port: int, max_rounds: int) ->
             final_answer = extract_final_answer(response)
             break
 
-        code_blocks = re.findall(r"```python\n(.*?)```", response, re.DOTALL)
+        code_blocks = extract_code_blocks(response)
         if not code_blocks and turn_idx == max_rounds - 1:
             final_answer = extract_final_answer(response)
 
@@ -98,22 +98,48 @@ def evaluate_budget(
     api_port: int,
     judge_client,
     max_rounds: int,
+    time_budget_s: float | None = None,
+    checkpoint_path: str | None = None,
 ) -> list[dict]:
     results = []
+    start = time.time()
     for i, sample in enumerate(samples):
-        result = run_single(sample, model_name, api_port, max_rounds)
-        result["correct"] = check_answer_equiv(
-            result["prediction"],
-            result["ground_truth"],
-            dataset_name,
-            judge_client,
-        )
+        try:
+            result = run_single(sample, model_name, api_port, max_rounds)
+            result["correct"] = check_answer_equiv(
+                result["prediction"],
+                result["ground_truth"],
+                dataset_name,
+                judge_client,
+            )
+        except Exception as exc:
+            print(f"  [warn] sample {i} failed: {exc!r}")
+            result = {
+                "question": sample.get("question", ""),
+                "ground_truth": sample.get("answer", ""),
+                "prediction": "",
+                "turn_budget": max_rounds,
+                "actual_assistant_turns": 0,
+                "messages": [],
+                "has_code_error": True,
+                "correct": False,
+                "error": repr(exc),
+            }
         results.append(result)
-        if (i + 1) % 25 == 0:
+        if checkpoint_path:
+            try:
+                save_results(results, checkpoint_path)
+            except Exception:
+                pass
+        if (i + 1) % 5 == 0 or (i + 1) == len(samples):
+            elapsed = time.time() - start
             print(
                 f"  [turns={max_rounds}] [{i + 1}/{len(samples)}] "
-                f"Acc={compute_accuracy(results):.1f}%"
+                f"Acc={compute_accuracy(results):.1f}% elapsed={elapsed:.0f}s"
             )
+        if time_budget_s and (time.time() - start) > time_budget_s:
+            print(f"  [time] budget {time_budget_s:.0f}s exceeded after {i + 1} samples - stopping early")
+            break
     return results
 
 
@@ -129,8 +155,14 @@ def main() -> None:
     parser.add_argument(
         "--judge_backend",
         choices=["openai", "local"],
-        default=os.environ.get("JUDGE_BACKEND", "openai"),
+        default=os.environ.get("JUDGE_BACKEND", "local"),
         help="Use 'local' to avoid OpenAI API judging.",
+    )
+    parser.add_argument(
+        "--time_budget_s",
+        type=int,
+        default=None,
+        help="Soft per-turn-budget wall-clock limit (seconds).",
     )
     args = parser.parse_args()
 
@@ -154,6 +186,11 @@ def main() -> None:
                 f"\n[EXP3] Model={args.model_name} Dataset={dataset_name.upper()} "
                 f"Turn budget={budget}"
             )
+            safe_model = args.model_name.replace("/", "_")
+            out_path = os.path.join(
+                args.output_dir,
+                f"{dataset_name}_turns{budget}_{safe_model}.json",
+            )
             results = evaluate_budget(
                 samples=samples,
                 dataset_name=dataset_name,
@@ -161,11 +198,8 @@ def main() -> None:
                 api_port=args.api_port,
                 judge_client=judge,
                 max_rounds=budget,
-            )
-            safe_model = args.model_name.replace("/", "_")
-            out_path = os.path.join(
-                args.output_dir,
-                f"{dataset_name}_turns{budget}_{safe_model}.json",
+                time_budget_s=args.time_budget_s,
+                checkpoint_path=out_path,
             )
             save_results(results, out_path)
             print_summary(f"{dataset_name} | turns={budget}", results)

@@ -1,296 +1,187 @@
-# Survey: DataMind for Data Analysis Agents
+# Survey: A Resource-Aware Reproduction of DataMind
 
-This repo is the runnable code and report draft for:
+Runnable code, Colab notebook, and report draft support files for our survey of:
 
-**Survey: A Resource-Aware Reproduction of DataMind for Data Analysis Agents**
+> Zhu et al. (2025). *Why Do Open-Source LLMs Struggle with Data Analysis?
+> A Systematic Empirical Study* (arXiv:2506.19794).
+> Upstream code: <https://github.com/zjunlp/DataMind>.
 
-It uses the public DataMind project as a local dependency, but this repo is not a
-copy of DataMind. The class work is in `experiments/`, `notebooks/`, and
-`report/`.
+This repo is not a fork of DataMind. It uses the upstream `DataMind/eval/`
+codebase as a local dependency for prompt/executor compatibility, while our
+own scripts in `experiments/` define the runnable course experiments.
 
-Original paper/code:
+## Revised Scope
 
-- Paper: *Why Do Open-Source LLMs Struggle with Data Analysis? A Systematic Empirical Study*
-- Upstream code: <https://github.com/zjunlp/DataMind>
+The proposal feedback was right: the original plan was too broad for a final
+run tonight. It referred to many original-paper tables without spelling out
+the actual measurements, assumed multi-A100 access, and included fine-tuning.
 
-## Project Scope
+This version is intentionally smaller and safer:
 
-The professor said the proposal was too ambitious. So this version keeps the
-project strong but doable on **one Colab Pro A100**.
+| # | Paper connection | What this repo runs | Default Colab cost |
+|---|---|---|---|
+| Exp 1 | Zhu et al. Table 1, table-info ablation | QRData prompts with filenames only vs. filenames plus columns, dtypes, and 3 sample rows | about 50 min |
+| Exp 2 | Zhu et al. Table 4 and Figure 2, code/error analysis | Categorize wrong baseline Exp-1 trajectories without extra model runs | under 1 min |
+| Exp 3 | Lightweight inference analogue of Zhu et al. Section 4.3/Table 5 turn-length finding | Same model and samples, max ReAct turns in `{2, 4, 6}` | about 75 min |
 
-You will run exactly three experiments:
+Dropped from the final runnable scope:
 
-1. **Exp. 1: Table metadata ablation**
-   - Same model, same questions.
-   - Compare prompt with only file names vs prompt with column names and sample rows.
-   - Script: `experiments/run_exp1_comprehension.py`
+- No LoRA, SFT, RL, or DataMind-12K training.
+- No DiscoveryBench on the default Colab path.
+- No Qwen 14B or multi-model sweep.
+- No paid API judge by default.
 
-2. **Exp. 2: Code behavior and error categories**
-   - Measure accuracy and code error rate.
-   - Categorize wrong answers as planning, data-understanding, or code errors.
-   - Script: `experiments/run_exp2_code_analysis.py`
+The notebook is designed for one Colab Pro A100 and has hard wall-clock caps
+plus per-sample checkpointing, so partial results survive a disconnect.
 
-3. **Exp. 3: Turn-budget study**
-   - Same model, same questions.
-   - Compare 2 vs 4 vs 6 allowed analysis turns.
-   - Script: `experiments/run_exp3_turn_budget.py`
-
-Not included anymore:
-
-- No LoRA fine-tuning.
-- No 4xA100 training job.
-- No full reproduction of every table in the paper.
-
-That is the point: smaller scope, clearer execution.
-
-## Folder Layout
+## Repo Layout
 
 ```text
 datamind-survey/
-├── experiments/
-│   ├── run_exp1_comprehension.py
-│   ├── run_exp2_code_analysis.py
-│   ├── run_exp3_turn_budget.py
-│   └── utils/
-├── notebooks/
-│   └── run_first3_colab.ipynb
-├── report/
-│   ├── main.tex
-│   └── references.bib
-├── download_data.py
-├── requirements.txt
-├── .gitignore
-└── README.md
++-- experiments/
+|   +-- run_exp1_comprehension.py
+|   +-- run_exp2_code_analysis.py
+|   +-- run_exp3_turn_budget.py
+|   +-- utils/
+|       +-- data_loader.py
+|       +-- datamind_compat.py
+|       +-- evaluate.py
++-- notebooks/
+|   +-- run_first3_colab.ipynb
++-- report/
+|   +-- main.tex
+|   +-- references.bib
++-- download_data.py
++-- requirements.txt
++-- README.md
 ```
 
-Downloaded folders are intentionally not committed:
+Recreated locally and not committed:
 
-- `data/`
 - `Datamind-main/`
-- `.venv/`
-- `results/`
+- `data/`
+- `experiments/results/`
+- `.venv/`, `*.zip`, model checkpoints, and vLLM logs
 
-They are recreated when you run the setup.
+## Quick Start on Colab A100
 
-## Easiest Way: Run on Colab Pro A100
+1. Make sure this GitHub repo is public.
+2. Open the notebook:
+   <https://colab.research.google.com/github/Razim021/datamind-survey/blob/main/notebooks/run_first3_colab.ipynb>
+3. In Colab, choose `Runtime -> Change runtime type -> GPU -> A100`.
+4. Run once with `SMOKE_TEST = True`.
+5. If the smoke test works, set `SMOKE_TEST = False` and run all cells again.
+6. Download `/content/datamind_first3_results.zip` from the final cell.
 
-Before opening Colab, make sure this GitHub repo is **public**.
-If the repo is private, Colab may open the notebook in your browser but the
-runtime will fail when it tries to clone the repo.
-
-Open the notebook:
-
-[Open in Colab](https://colab.research.google.com/github/Razim021/datamind-survey/blob/main/notebooks/run_first3_colab.ipynb)
-
-Button-by-button:
-
-1. Open the link above.
-2. Top menu: click **Runtime**.
-3. Click **Change runtime type**.
-4. Set **Hardware accelerator** to **GPU**.
-5. If Colab shows **GPU type**, choose **A100**.
-6. Click **Save**.
-7. Run the first cell.
-8. Run the GPU check cell. You should see `A100` in `nvidia-smi`.
-9. Run the setup cell. It clones this repo, clones DataMind, installs packages,
-   and downloads data.
-10. Run the vLLM server cell. Wait until it prints `vLLM is ready`.
-11. Run Exp. 1.
-12. Run Exp. 2.
-13. Run Exp. 2b error categorization.
-14. Run Exp. 3.
-15. Run the summary cell.
-16. Run the zip cell.
-17. In the left Colab sidebar, click the **folder** icon.
-18. Find `datamind_first3_results.zip`.
-19. Click the three dots beside it.
-20. Click **Download**.
-
-Important: you do not really run the notebook "on your Mac and connect it to
-Colab A100." You open the notebook in Colab. Your Mac is for editing and GitHub;
-Colab is the A100 machine.
-
-## Recommended Run Size
-
-In the first notebook cell:
-
-```python
-N_SAMPLES = 50
-MAX_ROUNDS = 6
-```
-
-For a quick smoke test:
-
-```python
-N_SAMPLES = 5
-```
-
-For stronger final numbers:
-
-```python
-N_SAMPLES = 100
-```
-
-Do not start with all samples at midnight. Run 5 first, then 50.
-
-## Local Mac Setup
-
-Only use this for checking scripts and editing the report. Do not run the model
-experiments on your Mac.
-
-```bash
-cd ~/Desktop/datamind-survey
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-Download local data if needed:
-
-```bash
-python download_data.py
-```
-
-Clone the upstream DataMind dependency if needed:
-
-```bash
-git clone https://github.com/zjunlp/DataMind Datamind-main
-```
-
-Set paths:
-
-```bash
-export DATAMIND_ROOT="$(pwd)/Datamind-main"
-export DATA_DIR="$(pwd)/data"
-```
-
-## Manual GPU Commands
-
-If you are not using the notebook, start vLLM first:
-
-```bash
-python -m vllm.entrypoints.openai.api_server \
-  --model Qwen/Qwen2.5-7B-Instruct \
-  --served-model-name Qwen2.5-7B-Instruct \
-  --port 8000 \
-  --dtype float16 \
-  --max-model-len 4096
-```
-
-Then open a second terminal:
-
-```bash
-cd experiments
-```
-
-Exp. 1:
-
-```bash
-python run_exp1_comprehension.py \
-  --model_name Qwen2.5-7B-Instruct \
-  --data_dir ../data \
-  --dataset qrdata \
-  --sub_experiment info \
-  --n_samples 50 \
-  --api_port 8000 \
-  --max_rounds 6 \
-  --judge_backend local \
-  --output_dir results/exp1_colab
-```
-
-Exp. 2:
-
-```bash
-python run_exp2_code_analysis.py \
-  --mode evaluate \
-  --models Qwen2.5-7B-Instruct \
-  --data_dir ../data \
-  --dataset qrdata \
-  --n_samples 50 \
-  --api_port 8000 \
-  --max_rounds 6 \
-  --judge_backend local \
-  --output_dir results/exp2_colab
-```
-
-Exp. 2b:
-
-```bash
-python run_exp2_code_analysis.py \
-  --mode categorize \
-  --results_dir results/exp2_colab \
-  --n_errors 50 \
-  --judge_backend local \
-  --output_dir results/exp2_colab
-```
-
-Exp. 3:
-
-```bash
-python run_exp3_turn_budget.py \
-  --model_name Qwen2.5-7B-Instruct \
-  --data_dir ../data \
-  --dataset qrdata \
-  --turn_budgets 2,4,6 \
-  --n_samples 50 \
-  --api_port 8000 \
-  --judge_backend local \
-  --output_dir results/exp3_colab
-```
-
-## Where Results Appear
-
-After Colab finishes, look at:
+Expected output files:
 
 ```text
 experiments/results/exp1_colab/summary.json
-experiments/results/exp2_colab/summary.json
 experiments/results/exp2_colab/error_categories.json
 experiments/results/exp3_colab/summary.json
 ```
 
-The current report draft already contains the 50-sample Colab results from the
-April 25 run. If you rerun with different numbers, replace the table values in
-`report/main.tex`.
+Use those JSON summaries when you are ready to update the report.
 
-## Make the Report PDF in Overleaf
+## What Each Experiment Does
 
-Button-by-button:
+### Exp 1: Table-Metadata Ablation
 
-1. Go to the ACL template:
-   <https://www.overleaf.com/latex/templates/association-for-computational-linguistics-acl-conference/jvxskxpnznfj>
-2. Click **Open as Template**.
-3. In the left file panel, click **Upload**.
-4. Upload `report/main.tex`.
-5. Upload `report/references.bib`.
-6. If Overleaf asks about replacing `main.tex`, click **Replace**.
-7. Top-left: click **Menu**.
-8. Set **Compiler** to **pdfLaTeX**.
-9. Make sure **Main document** is `main.tex`.
-10. Click outside the menu.
-11. Click **Recompile**.
-12. If citations show as `?`, click **Recompile** one more time.
-13. Check the PDF page count. Main content must be 8 pages or less, not counting
-    references.
-14. Top right beside Recompile: click the **Download PDF** icon.
+Script: `experiments/run_exp1_comprehension.py`
 
-Before final submission:
+Same QRData samples, same model, same ReAct loop. Only the prompt changes:
 
-1. Check that the result tables in `report/main.tex` match your latest Colab run.
-2. Keep the GitHub link as <https://github.com/Razim021/datamind-survey>.
-3. Make sure the report says you used one Colab Pro A100.
-4. Submit the PDF on Canvas.
-5. Your groupmate submits separately too.
+- `without_metadata`: question, background, and filenames only.
+- `with_metadata`: filenames plus column names, pandas dtypes, and the first
+  three rows for each CSV.
 
-## Final Order
+Metrics: answer accuracy and code-error rate.
 
-1. Push this repo to GitHub.
-2. Open the notebook in Colab.
-3. Choose A100.
-4. Run `N_SAMPLES = 5`.
-5. If that works, run `N_SAMPLES = 50`.
-6. Download `datamind_first3_results.zip`.
-7. Copy summary numbers into `report/main.tex`.
-8. Build PDF in Overleaf.
-9. Submit PDF on Canvas.
+### Exp 2: Baseline Error Categorization
+
+Script: `experiments/run_exp2_code_analysis.py`
+
+The default notebook does not run extra inference for Exp 2. It reads only the
+baseline Exp-1 file `qrdata_wo_info_*.json`, keeps incorrect answers, and
+assigns each failure to:
+
+- `code_error`
+- `data_understanding`
+- `planning_reasoning`
+
+This keeps the experiment cheap and directly tied to the baseline condition.
+
+### Exp 3: Turn-Budget Sweep
+
+Script: `experiments/run_exp3_turn_budget.py`
+
+Same model and QRData setting as the baseline. The only variable is maximum
+assistant turns: `2`, `4`, or `6`. This is not the full fine-tuned turn-length
+experiment from the paper; it is a lightweight test of whether extra inference
+turns alone help under the course-project budget.
+
+## Manual Commands
+
+From a fresh Colab runtime:
+
+```bash
+git clone https://github.com/Razim021/datamind-survey.git
+cd datamind-survey
+git clone --depth 1 https://github.com/zjunlp/DataMind Datamind-main
+pip install -r requirements.txt
+pip install -U vllm
+python download_data.py --dataset qrdata
+```
+
+Start vLLM:
+
+```bash
+vllm serve Qwen/Qwen2.5-7B-Instruct \
+  --served-model-name Qwen2.5-7B-Instruct \
+  --port 8000 \
+  --dtype float16 \
+  --max-model-len 4096 \
+  --gpu-memory-utilization 0.85 \
+  --disable-log-requests
+```
+
+Run the experiments from another shell:
+
+```bash
+export DATAMIND_ROOT="$(pwd)/Datamind-main"
+export DATA_DIR="$(pwd)/data"
+export JUDGE_BACKEND=local
+cd experiments
+
+python run_exp1_comprehension.py \
+  --model_name Qwen2.5-7B-Instruct \
+  --data_dir ../data --dataset qrdata --sub_experiment info \
+  --n_samples 40 --max_rounds 4 --api_port 8000 \
+  --time_budget_s 1800 --judge_backend local \
+  --output_dir results/exp1_colab
+
+python run_exp2_code_analysis.py \
+  --mode categorize \
+  --results_dir results/exp1_colab \
+  --file_glob "qrdata_wo_info_*.json" \
+  --n_errors 40 --judge_backend local \
+  --output_dir results/exp2_colab
+
+python run_exp3_turn_budget.py \
+  --model_name Qwen2.5-7B-Instruct \
+  --data_dir ../data --dataset qrdata \
+  --turn_budgets 2,4,6 --n_samples 25 --api_port 8000 \
+  --time_budget_s 1800 --judge_backend local \
+  --output_dir results/exp3_colab
+```
+
+Optional appendix data:
+
+```bash
+python download_data.py --dataset discoverybench
+```
+
+## Resources
+
+Default run: one Colab Pro A100, Qwen2.5-7B-Instruct served locally with vLLM,
+QRData only, and local deterministic judging. No paid API calls are required.

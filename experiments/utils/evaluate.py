@@ -152,7 +152,11 @@ def extract_final_answer(response: str) -> str:
 
 def extract_code_blocks(response: str) -> list[str]:
     """Extract all Python code blocks from a markdown-formatted response."""
-    return re.findall(r"```python\n(.*?)```", response, re.DOTALL)
+    return [
+        block.strip()
+        for block in re.findall(r"```(?:python|py)?\s*\n(.*?)```", response, re.DOTALL | re.IGNORECASE)
+        if block.strip()
+    ]
 
 
 def count_turns(messages: list[dict]) -> int:

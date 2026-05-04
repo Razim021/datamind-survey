@@ -24,6 +24,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 # ── project imports ────────────────────────────────────────────────────────────
@@ -31,7 +32,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from utils.evaluate import (
     check_answer_equiv, compute_accuracy, save_results,
     extract_final_answer, print_summary, get_judge_client,
-    compute_code_error_rate,
+    compute_code_error_rate, extract_code_blocks,
 )
 from utils.data_loader import (
     load_qrdata, load_discoverybench,
@@ -60,7 +61,7 @@ def run_analysis(sample: dict, prompt: str, model_name: str,
     final_answer = ""
     code_error_detected = False
 
-    for _ in range(max_rounds):
+    for turn_idx in range(max_rounds):
         response = chat_with_model(
             messages=messages,
             model=model_name,
@@ -73,9 +74,10 @@ def run_analysis(sample: dict, prompt: str, model_name: str,
             final_answer = extract_final_answer(response)
             break
 
-        # Execute any code blocks found in the response
-        import re
-        code_blocks = re.findall(r"```python\n(.*?)```", response, re.DOTALL)
+        code_blocks = extract_code_blocks(response)
+        if not code_blocks and turn_idx == max_rounds - 1:
+            final_answer = extract_final_answer(response)
+
         for code in code_blocks:
             stdout, stderr, has_error = run_python_code(runner, code, sample)
             obs_content = stdout or stderr or "[Executed Successfully with No Output]"
@@ -95,20 +97,49 @@ def run_analysis(sample: dict, prompt: str, model_name: str,
 
 def evaluate_condition(samples: list[dict], prompt_fn, model_name: str,
                        dataset_name: str, api_port: int,
-                       judge_client, max_rounds: int = 10) -> list[dict]:
-    """Evaluate a list of samples using a given prompt-building function."""
+                       judge_client, max_rounds: int = 4,
+                       time_budget_s: float | None = None,
+                       checkpoint_path: str | None = None) -> list[dict]:
+    """Evaluate a list of samples using a given prompt-building function.
+
+    If ``time_budget_s`` is set, stop early when budget is exhausted and
+    return what we have. ``checkpoint_path`` (optional) saves results after
+    each sample so a Colab disconnect doesn't lose data.
+    """
     results = []
+    start = time.time()
     for i, sample in enumerate(samples):
-        prompt = prompt_fn(sample)
-        result = run_analysis(sample, prompt, model_name, api_port, max_rounds)
-        result["correct"] = check_answer_equiv(
-            result["prediction"], result["ground_truth"],
-            dataset_name, judge_client
-        )
+        try:
+            prompt = prompt_fn(sample)
+            result = run_analysis(sample, prompt, model_name, api_port, max_rounds)
+            result["correct"] = check_answer_equiv(
+                result["prediction"], result["ground_truth"],
+                dataset_name, judge_client
+            )
+        except Exception as exc:  # one bad sample shouldn't kill the whole run
+            print(f"  [warn] sample {i} failed: {exc!r}")
+            result = {
+                "question": sample.get("question", ""),
+                "ground_truth": sample.get("answer", ""),
+                "prediction": "",
+                "messages": [],
+                "has_code_error": True,
+                "correct": False,
+                "error": repr(exc),
+            }
         results.append(result)
-        if (i + 1) % 20 == 0:
+        if checkpoint_path:
+            try:
+                save_results(results, checkpoint_path)
+            except Exception:
+                pass
+        if (i + 1) % 10 == 0 or (i + 1) == len(samples):
             acc = compute_accuracy(results)
-            print(f"  [{i+1}/{len(samples)}] Running accuracy: {acc:.2f}%")
+            elapsed = time.time() - start
+            print(f"  [{i+1}/{len(samples)}] acc={acc:.1f}%  elapsed={elapsed:.0f}s")
+        if time_budget_s and (time.time() - start) > time_budget_s:
+            print(f"  [time] budget {time_budget_s:.0f}s exceeded after {i+1} samples - stopping early")
+            break
     return results
 
 
@@ -123,18 +154,20 @@ def main():
                         help="vLLM server port")
     parser.add_argument("--output_dir", default="results/exp1")
     parser.add_argument("--dataset",    choices=["qrdata", "discoverybench", "both"],
-                        default="both")
-    parser.add_argument("--max_rounds", type=int, default=10)
+                        default="qrdata")
+    parser.add_argument("--max_rounds", type=int, default=4)
     parser.add_argument("--sub_experiment", choices=["info", "extra", "both"],
-                        default="both",
+                        default="info",
                         help="'info' = table metadata; 'extra' = distractor files")
     parser.add_argument("--n_samples",  type=int, default=None,
                         help="Limit samples for quick testing (None = all)")
     parser.add_argument("--extra_files_dir", default=None,
                         help="Directory of distractor CSV files for sub-exp B")
     parser.add_argument("--judge_backend", choices=["openai", "local"],
-                        default=os.environ.get("JUDGE_BACKEND", "openai"),
+                        default=os.environ.get("JUDGE_BACKEND", "local"),
                         help="Use 'local' to avoid OpenAI API judging.")
+    parser.add_argument("--time_budget_s", type=int, default=None,
+                        help="Soft per-condition wall-clock budget in seconds.")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -167,9 +200,11 @@ def main():
         if args.sub_experiment in ("info", "both"):
             # ── Sub-experiment A: w/o Info ──────────────────────────────────
             print("\n[Sub-exp A] Condition: w/o Info")
+            ckpt_wo = os.path.join(args.output_dir, f"{ds_name}_wo_info_{args.model_name}.json")
             wo_info = evaluate_condition(
                 samples, build_prompt_without_info,
-                args.model_name, ds_name, args.api_port, judge, args.max_rounds
+                args.model_name, ds_name, args.api_port, judge, args.max_rounds,
+                time_budget_s=args.time_budget_s, checkpoint_path=ckpt_wo,
             )
             save_results(wo_info, os.path.join(
                 args.output_dir, f"{ds_name}_wo_info_{args.model_name}.json"))
@@ -182,9 +217,11 @@ def main():
 
             # ── Sub-experiment A: w/ Info ───────────────────────────────────
             print("\n[Sub-exp A] Condition: w/ Info")
+            ckpt_w = os.path.join(args.output_dir, f"{ds_name}_w_info_{args.model_name}.json")
             w_info = evaluate_condition(
                 samples, build_prompt_with_info,
-                args.model_name, ds_name, args.api_port, judge, args.max_rounds
+                args.model_name, ds_name, args.api_port, judge, args.max_rounds,
+                time_budget_s=args.time_budget_s, checkpoint_path=ckpt_w,
             )
             save_results(w_info, os.path.join(
                 args.output_dir, f"{ds_name}_w_info_{args.model_name}.json"))
@@ -203,7 +240,9 @@ def main():
             print("\n[Sub-exp B] Condition: w/o Extra files")
             wo_extra = evaluate_condition(
                 samples, build_prompt_without_info,
-                args.model_name, ds_name, args.api_port, judge, args.max_rounds
+                args.model_name, ds_name, args.api_port, judge, args.max_rounds,
+                time_budget_s=args.time_budget_s,
+                checkpoint_path=os.path.join(args.output_dir, f"{ds_name}_wo_extra_{args.model_name}.json"),
             )
             save_results(wo_extra, os.path.join(
                 args.output_dir, f"{ds_name}_wo_extra_{args.model_name}.json"))
@@ -221,7 +260,9 @@ def main():
             ]
             w_extra = evaluate_condition(
                 samples_with_extra, build_prompt_without_info,
-                args.model_name, ds_name, args.api_port, judge, args.max_rounds
+                args.model_name, ds_name, args.api_port, judge, args.max_rounds,
+                time_budget_s=args.time_budget_s,
+                checkpoint_path=os.path.join(args.output_dir, f"{ds_name}_w_extra_{args.model_name}.json"),
             )
             save_results(w_extra, os.path.join(
                 args.output_dir, f"{ds_name}_w_extra_{args.model_name}.json"))
