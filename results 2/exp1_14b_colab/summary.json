@@ -1,0 +1,13 @@
+{
+  "qrdata_without_metadata": {
+    "accuracy": 50.0,
+    "code_error_rate": 10.0,
+    "n": 40
+  },
+  "qrdata_with_metadata": {
+    "accuracy": 50.0,
+    "code_error_rate": 0.0,
+    "n": 40
+  },
+  "qrdata_info_delta": 0.0
+}

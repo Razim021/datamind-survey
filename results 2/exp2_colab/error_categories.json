@@ -1,0 +1,20 @@
+{
+  "n_total": 23,
+  "source_files": [
+    "qrdata_wo_info_Qwen2.5-7B-Instruct.json"
+  ],
+  "categories": {
+    "planning_reasoning": {
+      "count": 0,
+      "percent": 0.0
+    },
+    "data_understanding": {
+      "count": 20,
+      "percent": 87.0
+    },
+    "code_error": {
+      "count": 3,
+      "percent": 13.0
+    }
+  }
+}

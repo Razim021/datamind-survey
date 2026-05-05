@@ -1,0 +1,17 @@
+{
+  "qrdata_turns_2": {
+    "accuracy": 56.0,
+    "code_error_rate": 8.0,
+    "n": 25
+  },
+  "qrdata_turns_4": {
+    "accuracy": 56.0,
+    "code_error_rate": 8.0,
+    "n": 25
+  },
+  "qrdata_turns_6": {
+    "accuracy": 56.0,
+    "code_error_rate": 8.0,
+    "n": 25
+  }
+}

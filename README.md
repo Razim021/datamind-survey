@@ -1,6 +1,6 @@
 # Survey: A Resource-Aware Reproduction of DataMind
 
-Runnable code, Colab notebook, and report draft support files for our survey of:
+Runnable code, Colab notebook, and final experiment outputs for our survey of:
 
 > Zhu et al. (2025). *Why Do Open-Source LLMs Struggle with Data Analysis?
 > A Systematic Empirical Study* (arXiv:2506.19794).
@@ -52,9 +52,11 @@ datamind-survey/
 |       +-- evaluate.py
 +-- notebooks/
 |   +-- run_first3_colab.ipynb
-+-- report/
-|   +-- main.tex
-|   +-- references.bib
++-- results 2/
+|   +-- exp1_colab/
+|   +-- exp1_14b_colab/
+|   +-- exp2_colab/
+|   +-- exp3_colab/
 +-- download_data.py
 +-- requirements.txt
 +-- README.md
@@ -78,16 +80,17 @@ Recreated locally and not committed:
 6. Optional stronger run: execute the `Optional Upgrade: 14B Exp 1 Only` cells.
 7. Download `/content/datamind_first3_results.zip` from the final cell.
 
-Expected output files:
+Colab writes fresh outputs under `experiments/results/`. The completed outputs
+from the final run are committed in `results 2/`:
 
 ```text
-experiments/results/exp1_colab/summary.json
-experiments/results/exp1_14b_colab/summary.json       # optional
-experiments/results/exp2_colab/error_categories.json
-experiments/results/exp3_colab/summary.json
+results 2/exp1_colab/summary.json
+results 2/exp1_14b_colab/summary.json
+results 2/exp2_colab/error_categories.json
+results 2/exp3_colab/summary.json
 ```
 
-Use those JSON summaries when you are ready to update the report.
+Use those JSON summaries when writing the report.
 
 ## What Each Experiment Does
 
@@ -156,8 +159,7 @@ vllm serve Qwen/Qwen2.5-7B-Instruct \
   --port 8000 \
   --dtype float16 \
   --max-model-len 4096 \
-  --gpu-memory-utilization 0.85 \
-  --disable-log-requests
+  --gpu-memory-utilization 0.85
 ```
 
 Run the experiments from another shell:
