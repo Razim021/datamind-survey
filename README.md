@@ -14,7 +14,7 @@ own scripts in `experiments/` define the runnable course experiments.
 
 The proposal feedback was right: the original plan was too broad for a final
 run tonight. It referred to many original-paper tables without spelling out
-the actual measurements, assumed multi-A100 access, and included fine-tuning.
+the actual measurements, assumed multi-A100 access, and included fine-tuning
 
 This version is intentionally smaller and safer:
 
