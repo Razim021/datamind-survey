@@ -17,7 +17,7 @@ Usage:
         --api_port 8000 \
         --output_dir results/exp1
 
-Results are saved as JSON files and a summary table is printed.
+Results are saved as JSON files and a summary table is printed
 """
 
 import argparse
